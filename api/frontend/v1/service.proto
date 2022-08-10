@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package nexus.api.frontend.v1;
+
+service FrontendManagementService {
+  rpc UpdateConfig (UpdateConfigRequest) returns (UpdateConfigResponse) {
+  }
+}

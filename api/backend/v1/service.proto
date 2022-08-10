@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package nexus.api.backend.v1;
+
+import "google/api/annotations.proto";
+
+// This service is implemented by Nexus backends to support service registration
+// and task handling. Nexus clients and Nexus
+service BackendService {
+  rpc UpdateServices (UpdateServicesRequest) returns (UpdateServicesResponse) {
+    option (google.api.http) = {
+      post: "/v1/backend/services"
+      body: "*"
+    };
+  }
+
+  rpc GetServices (GetServicesRequest) returns (GetServicesResponse) {
+    option (google.api.http) = {
+      get: "/v1/backend/services"
+    };
+  }
+
+  rpc Call ()
+
+  // TODO(cretz): Should we do poll here instead?
+  rpc StreamTasks (stream StreamTasksRequest) returns (stream StreamTasksResponse) {
+    // Cannot do streams with HTTP gateway
+  }
+}
+
+message Service {
+  string name = 1;
+  string description = 2;
+}
+
+message UpdateServicesRequest {
+  // Set of services to create or update.
+  repeated Service services = 1;
+
+  oneof removal {
+    // If set, the set of services to remove.
+    repeated string remove_services = 2;
+    // If true, will replace all existing services with given services.
+    bool replace = 3;
+  }
+}
+
+message UpdateServicesResponse {
+  // Set of created/updated services.
+  repeated Service services = 1;
+}
+
+message GetServicesRequest {
+}
+
+message GetServicesResponse {
+  repeated Service services = 1;
+}
+
+message MetadataValues {
+  repeated string values = 1;
+}
+
+message CallRequest {
+  string request_id = 1;
+  string service = 2;
+  map<string, MetadataValues> metadata = 3;
+  bytes body = 4;
+  // TODO(cretz): Remote information, e.g. caller addr and TLS?
+
+  oneof protocol {
+    Http http = 3;
+    Grpc grpc = 4;
+  }
+
+  message Http {
+    string method = 1;
+    string url = 2;
+  }
+
+  message Grpc {
+    string method = 1;
+    string request_type_url = 2;
+    string response_type_url = 3;
+  }
+}
+
+message CallResponse {
+  string request_id = 1;
+  map<string, MetadataValues> metadata = 2;
+  // TODO(cretz): What about streaming large HTTP responses?
+  bytes body = 3;
+
+  oneof protocol {
+    Http http = 3;
+    Grpc grpc = 4;
+  }
+
+  message Http {
+    int status_code = 1;
+  }
+
+  message Grpc {
+    // If this is not 0 (i.e. OK), the body is ignored
+    int status_code = 1;
+    string status_message = 2;
+    google.protobuf.Any status_details = 3;
+  }
+}
+
+message StreamTasksRequest {
+  oneof task {
+    Init init = 1;
+    CallResponse call_response = 2;
+  }
+
+  message Init {
+    repeated string services = 1;
+  }
+}
+
+message StreamTasksResponse {
+  oneof task {
+    CallRequest call_request = 2;
+  }
+}
