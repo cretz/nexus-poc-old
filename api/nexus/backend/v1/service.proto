@@ -1,8 +1,9 @@
 syntax = "proto3";
 
-package nexus.api.backend.v1;
+package nexus.backend.v1;
 
 import "google/api/annotations.proto";
+import "google/protobuf/any.proto";
 
 // This service is implemented by Nexus backends to support service registration
 // and task handling. Nexus clients and Nexus
@@ -20,7 +21,12 @@ service BackendService {
     };
   }
 
-  rpc Call ()
+  rpc Call (CallRequest) returns (CallResponse) {
+    option (google.api.http) = {
+      post: "/v1/backend/call"
+      body: "*"
+    };
+  }
 
   // TODO(cretz): Should we do poll here instead?
   rpc StreamTasks (stream StreamTasksRequest) returns (stream StreamTasksResponse) {
@@ -37,12 +43,13 @@ message UpdateServicesRequest {
   // Set of services to create or update.
   repeated Service services = 1;
 
-  oneof removal {
-    // If set, the set of services to remove.
-    repeated string remove_services = 2;
-    // If true, will replace all existing services with given services.
-    bool replace = 3;
-  }
+  // If set, the set of services to remove. Cannot have values if replace is
+  // true.
+  repeated string remove_services = 2;
+
+  // If true, will replace all existing services with given services. Cannot be
+  // true if remove_services has values.
+  bool replace = 3;
 }
 
 message UpdateServicesResponse {
@@ -69,8 +76,8 @@ message CallRequest {
   // TODO(cretz): Remote information, e.g. caller addr and TLS?
 
   oneof protocol {
-    Http http = 3;
-    Grpc grpc = 4;
+    Http http = 5;
+    Grpc grpc = 6;
   }
 
   message Http {
@@ -92,17 +99,17 @@ message CallResponse {
   bytes body = 3;
 
   oneof protocol {
-    Http http = 3;
-    Grpc grpc = 4;
+    Http http = 4;
+    Grpc grpc = 5;
   }
 
   message Http {
-    int status_code = 1;
+    int32 status_code = 1;
   }
 
   message Grpc {
     // If this is not 0 (i.e. OK), the body is ignored
-    int status_code = 1;
+    int32 status_code = 1;
     string status_message = 2;
     google.protobuf.Any status_details = 3;
   }

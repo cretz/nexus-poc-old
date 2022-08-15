@@ -48,75 +48,77 @@ To handle service, a worker must be created to handle the calls. This can be don
 package main
 
 import (
-  "context"
-  "encoding/json"
-  "fmt"
-  "log"
-  "net/http"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
 
-  "github.com/cretz/nexus-poc/sdk/go/nexus/backend/client"
-  "github.com/cretz/nexus-poc/sdk/go/nexus/backend/worker"
+	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/client"
+	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/worker"
 )
 
-func HandleMyServiceRequest(ctx context.Context, req *worker.CallRequest) *worker.CallResponse {
-  // Validate HTTP
-  if req.HTTP == nil {
-    return worker.ErrInvalidProtocol
-  } else if req.HTTP.RelativePath != "/greeting" {
-    // Note the relative path has the service stripped
-    return worker.NewHTTPError(http.StatusNotFound)
-  } else if req.HTTP.Request.Method != "GET" {
-    return worker.NewHTTPError(http.MethodNotAllowed)
-  } else if req.HTTP.Request.Header.Get("Content-Type") != "application/json" {
-    return worker.NewHTTPErrorf(http.StatusBadRequest, "Invalid input")
-  }
-  
-  // Read body
-  reqBody := struct{ Name string `json:"name"` }{}
-  b, err := io.ReadAll(req.HTTP.Request.Body)
-  if closeErr := req.HTTP.Request.Body.Close(); closeErr != nil && err == nil {
-    err = closeErr
-  }
-  if err == nil {
-    err = json.Unmarshal(b, &reqBody)
-  }
-  if err != nil {
-    return worker.NewHTTPErrorf(http.StatusBadRequest, "Invalid input: %w", err)
-  }
+func HandleGreeting(resp http.ResponseWriter, req *http.Request) {
+	// Check method and content type
+	if req.Method != "GET" {
+		http.Error(resp, "must be GET", http.StatusMethodNotAllowed)
+		return
+	} else if req.Header.Get("Content-Type") != "application/json" {
+		http.Error(resp, "must be application/json content type", http.StatusBadRequest)
+		return
+	}
 
-  // Respond with greeting JSON body
-  b, _ := json.Marshal(map[string]string{"greeting": fmt.Sprintf("Hello, %v!", reqBody.Name)})
-  return worker.NewHTTPOKResponse(b, "Content-Type", "application/json")
+	// Read body
+	reqBody := struct {
+		Name string `json:"name"`
+	}{}
+	b, err := io.ReadAll(req.Body)
+	if closeErr := req.Body.Close(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	if err == nil {
+		err = json.Unmarshal(b, &reqBody)
+	}
+	if err != nil {
+		http.Error(resp, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Respond with greeting JSON body
+	b, _ = json.Marshal(map[string]string{"greeting": fmt.Sprintf("Hello, %v!", reqBody.Name)})
+	resp.Header().Add("Content-Type", "application/json")
+	resp.Write(b)
 }
 
 func main() {
-  ctx := context.TODO()
+	ctx := context.TODO()
 
-  // Create client
-  client, err := client.Dial(ctx, client.Options{Target:"nexus-backend.example.com"})
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer client.Close()
+	// Create client
+	client, err := client.Dial(ctx, client.Options{Target: "nexus-backend.example.com"})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer client.Close()
 
-  // Start worker
-  worker, err := worker.New(worker.Options{
-    ServiceHandlers: map[string]worker.NexusHandler{
-      "my-service": HandleMyServiceRequest,
-    },
-  })
-  if err != nil {
-    log.Fatal(err)
-  } else if err = worker.Start(ctx); err != nil {
-    log.Fatal(err)
-  }
-  defer worker.Stop()
+	// Start worker
+	mux := http.NewServeMux()
+	mux.HandleFunc("/greeting", HandleGreeting)
+	worker, err := worker.New(worker.Options{Client: client, HTTPHandler: mux})
+	if err != nil {
+		log.Fatal(err)
+	} else if err = worker.Start(ctx); err != nil {
+		log.Fatal(err)
+	}
+	defer worker.Stop()
 
-  // Wait for completion
-  log.Print("Worker started, ctrl+c to stop")
-  signalCh := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-  <-signalCh
+	// Wait for completion
+	log.Print("Worker started, ctrl+c to stop")
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt)
+	<-signalCh
 }
 ```
 

@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+package nexus.frontend.v1;
+
 message Config {
   
 }

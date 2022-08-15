@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package nexus.frontend.v1;
+
+import "google/api/annotations.proto";
+
+service FrontendManagementService {
+  rpc UpdateConfig (UpdateConfigRequest) returns (UpdateConfigResponse) {
+    option (google.api.http) = {
+      post: "/v1/frontend/config"
+      body: "*"
+    };
+  }
+}
+
+message UpdateConfigRequest {
+}
+
+message UpdateConfigResponse {
+}
