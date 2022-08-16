@@ -13,6 +13,40 @@ This repository has the following components:
 * [nexus-cli/](nexus-cli) - The Nexus CLI (In Go, binary called `nexus`, uses the Go SDK)
 * [sdk/](sdk) - Language-specific SDKs
 
+Note, this POC only deals in HTTP. gRPC and others may come later.
+
+## ALOs over HTTP
+
+ALOs are modelled on top of the protocol, not within it. For HTTP:
+
+### Starting an ALO
+
+`POST /my-service/<path>/<identifier>` that, on success, returns a `Content-Type` of `application/x-nexus-alo` with a
+response body that is JSON formatted `nexus.backend.v1.AloInfo` object and the status code will be 201.
+
+The request body can be in anything and the headers are turned into ALO metadata.
+
+#### URL result callbacks
+
+If the request header `Nexus-Result-Callback` is present with a URL (or multiple headers of such), those URLs are
+invoked with the a request with `Content-Type` of `application/x-nexus-alo` and a body of `nexus.backend.v1.AloInfo`.
+Recipients may then ask for the ALO result. TODO(cretz): Should we instead send the result/error in the callback?
+
+### Getting ALO info
+
+`GET /my-service/<path>/<identifier>` will, on success, return a `Content-Type` of `application/x-nexus-alo` and the
+response body will be a JSON formatted `nexus.backend.v1.AloInfo` object and the status code will be 200.
+
+### Getting an ALO result
+
+`GET /my-service/<path>/<identifier>/result` will block and return a result when available (or error). The response body
+can be anything that represents the success (200 status code) or failure.
+
+### Cancelling an ALO
+
+`POST /my-service/<path>/<identifier>/cancel` will cancel the ALO. There is no response on success, but the status code
+is 202.
+
 ## Walkthrough: Creating a low-level hello world HTTP service
 
 This walkthrough assumes a Nexus backend is running at https://nexus-backend.example.com
@@ -21,7 +55,7 @@ This walkthrough assumes a Nexus backend is running at https://nexus-backend.exa
 
 To create a Nexus service, you must first register it with the backend. This can be done individually via:
 
-    nexus service register --service-name my-service --service-description "My service" --backend nexus-backend.example.com
+    nexus service register --service-name my-service --service-description "My service" --service-http --backend nexus-backend.example.com
 
 But this can also be done with a services file. For example, given the `services.yaml` below:
 
@@ -29,6 +63,7 @@ But this can also be done with a services file. For example, given the `services
 services:
   - name: my-service
     description: My service
+    http: true
 ```
 
 Running:
@@ -42,87 +77,8 @@ Now that the service is registered with the backend, let's create a worker.
 
 ### Implementing a worker
 
-To handle service, a worker must be created to handle the calls. This can be done in Go like so:
-
-```go
-package main
-
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-
-	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/client"
-	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/worker"
-)
-
-func HandleGreeting(resp http.ResponseWriter, req *http.Request) {
-	// Check method and content type
-	if req.Method != "GET" {
-		http.Error(resp, "must be GET", http.StatusMethodNotAllowed)
-		return
-	} else if req.Header.Get("Content-Type") != "application/json" {
-		http.Error(resp, "must be application/json content type", http.StatusBadRequest)
-		return
-	}
-
-	// Read body
-	reqBody := struct {
-		Name string `json:"name"`
-	}{}
-	b, err := io.ReadAll(req.Body)
-	if closeErr := req.Body.Close(); closeErr != nil && err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = json.Unmarshal(b, &reqBody)
-	}
-	if err != nil {
-		http.Error(resp, fmt.Sprintf("invalid request: %v", err), http.StatusBadRequest)
-		return
-	}
-
-	// Respond with greeting JSON body
-	b, _ = json.Marshal(map[string]string{"greeting": fmt.Sprintf("Hello, %v!", reqBody.Name)})
-	resp.Header().Add("Content-Type", "application/json")
-	resp.Write(b)
-}
-
-func main() {
-	ctx := context.TODO()
-
-	// Create client
-	client, err := client.Dial(ctx, client.Options{Target: "nexus-backend.example.com"})
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer client.Close()
-
-	// Start worker
-	mux := http.NewServeMux()
-	mux.HandleFunc("/greeting", HandleGreeting)
-	worker, err := worker.New(worker.Options{Client: client, HTTPHandler: mux})
-	if err != nil {
-		log.Fatal(err)
-	} else if err = worker.Start(ctx); err != nil {
-		log.Fatal(err)
-	}
-	defer worker.Stop()
-
-	// Wait for completion
-	log.Print("Worker started, ctrl+c to stop")
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt)
-	<-signalCh
-}
-```
-
-Running this will start a worker to handle all calls to the `my-service` service.
+To handle service, a worker must be created to handle the calls. See [this file](examples/hello-http/worker-go/main.go)
+for a simple worker in Go. Running that file will start a worker to handle all calls to the `my-service` service.
 
 ### Running a frontend
 
@@ -163,15 +119,80 @@ This will return:
 
     {"greeting":"Hello, Nexus!"}
 
-## Walkthrough: Creating a hello world gRPC service
-
-TODO
-
 ## Walkthrough: Creating a low-level service with an ALO response
 
-TODO
+This relies on knowledge from the previous walkthrough.
 
-## Walkthrough: Creating a high-level HTTP and gRPC service
+### Registering a service
+
+`services.yaml`:
+
+```yaml
+services:
+  - name: my-service
+    description: My service
+    http: true
+```
+
+Run:
+
+    nexus service register --file services.yaml --backend nexus-backend.example.com
+
+### Implementing a worker
+
+To handle service, a worker must be created to handle the ALO calls. See
+[this file](examples/hello-alo/worker-go/main.go) for a simple ALO worker in Go. Running that file will start a worker
+to handle all `greeting` calls to the `my-service` service as ALOs.
+
+### Running a frontend
+
+`config.yaml`:
+
+```yaml
+frontend:
+  bindings:
+    - http: 0.0.0.0:8080
+  endpoints:
+    - http: default
+      backend: nexus-backend.example.com
+      service: my-service
+```
+
+Run:
+
+    nexus frontend start --config config.yaml
+
+Frontend HTTP server now running
+
+### Invoking
+
+Invocation is straightforward HTTP. Can simply cURL:
+
+    curl -X POST http://localhost:8080/my-service/greeting/my-alo-id \
+        -H 'Content-Type: application/json' \
+        -d '{"name":"Nexus"}'
+
+This will return a 201 with a `Content-Type` of `application/x-nexus-alo` and a body of:
+
+    {"id":"my-alo-id","status":"RUNNING"}
+
+To check the status:
+
+    curl http://localhost:8080/my-service/greeting/my-alo-id
+
+This may return a 200 with a `Content-Type` of `application/x-nexus-alo` and a body of:
+
+    {"id":"my-alo-id","status":"COMPLETED"}
+
+To get the result:
+
+    curl http://localhost:8080/my-service/greeting/my-alo-id/result
+
+This may return a 200 with a body of:
+
+    {"greeting":"Hello, Nexus!"}
+
+## Walkthrough: Creating a high-level HTTP service
 
 TODO
 
@@ -179,6 +200,6 @@ TODO
 
 TODO
 
-## Walkthrough: Creating a high-level HTTP and gRPC service in Java
+## Walkthrough: Creating a high-level HTTP in Java
 
 TODO

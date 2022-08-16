@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package nexus.backend.v1;
+
+message Service {
+  string name = 1;
+  string description = 2;
+  bool http = 3;
+  // TODO(cretz):
+  // bool grpc = 4;
+}
+
+// An ALO is started via a
+message AloInfo {
+  string id = 1;
+  Status status = 2;
+  map<string, string> metadata = 3;
+  repeated string http_result_urls = 4;
+
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    RUNNING = 1;
+    COMPLETED = 2;
+  }
+}

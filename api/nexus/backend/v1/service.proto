@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nexus.backend.v1;
 
+import "nexus/backend/v1/models.proto";
+
 import "google/api/annotations.proto";
 import "google/protobuf/any.proto";
 
@@ -32,11 +34,6 @@ service BackendService {
   rpc StreamTasks (stream StreamTasksRequest) returns (stream StreamTasksResponse) {
     // Cannot do streams with HTTP gateway
   }
-}
-
-message Service {
-  string name = 1;
-  string description = 2;
 }
 
 message UpdateServicesRequest {
@@ -77,7 +74,8 @@ message CallRequest {
 
   oneof protocol {
     Http http = 5;
-    Grpc grpc = 6;
+    // TODO(cretz):
+    // Grpc grpc = 6;
   }
 
   message Http {
@@ -85,11 +83,12 @@ message CallRequest {
     string url = 2;
   }
 
-  message Grpc {
-    string method = 1;
-    string request_type_url = 2;
-    string response_type_url = 3;
-  }
+  // TODO(cretz):
+  // message Grpc {
+  //   string method = 1;
+  //   string request_type_url = 2;
+  //   string response_type_url = 3;
+  // }
 }
 
 message CallResponse {
@@ -100,7 +99,8 @@ message CallResponse {
 
   oneof protocol {
     Http http = 4;
-    Grpc grpc = 5;
+    // TODO(cretz):
+    // Grpc grpc = 5;
   }
 
   message Http {
