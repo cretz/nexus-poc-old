@@ -9,6 +9,7 @@ import (
 
 type Options struct {
 	Client      *client.Client
+	Service     string
 	HTTPHandler http.Handler
 }
 

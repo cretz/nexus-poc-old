@@ -1,12 +1,10 @@
-module github.com/cretz/nexus-poc/examples
+module github.com/cretz/nexus-poc/sdk/temporal-go
 
 go 1.18
 
 require (
 	github.com/cretz/nexus-poc/sdk/go v0.0.0
-	github.com/cretz/nexus-poc/sdk/temporal-go v0.0.0
 	go.temporal.io/sdk v1.16.0
-	google.golang.org/protobuf v1.28.1
 )
 
 require (
@@ -33,9 +31,8 @@ require (
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	google.golang.org/genproto v0.0.0-20220805133916-01dd62135a58 // indirect
 	google.golang.org/grpc v1.48.0 // indirect
+	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/cretz/nexus-poc/sdk/go v0.0.0 => ../sdk/go
-
-replace github.com/cretz/nexus-poc/sdk/temporal-go v0.0.0 => ../sdk/temporal-go
+replace github.com/cretz/nexus-poc/sdk/go v0.0.0 => ../go

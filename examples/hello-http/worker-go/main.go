@@ -10,9 +10,15 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/backendpb"
 	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/client"
 	"github.com/cretz/nexus-poc/sdk/go/nexus/backend/worker"
 )
+
+func HandleGreeting2(context.Context, *backendpb.CallRequest) (*backendpb.CallResponse, error) {
+
+	panic("TODO")
+}
 
 func HandleGreeting(resp http.ResponseWriter, req *http.Request) {
 	// Check method and content type
@@ -59,7 +65,7 @@ func main() {
 	// Start worker
 	mux := http.NewServeMux()
 	mux.HandleFunc("/greeting", HandleGreeting)
-	worker, err := worker.New(worker.Options{Client: client, HTTPHandler: mux})
+	worker, err := worker.New(worker.Options{Client: client, Service: "my-service", HTTPHandler: mux})
 	if err != nil {
 		log.Fatal(err)
 	} else if err = worker.Start(ctx); err != nil {

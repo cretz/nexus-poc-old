@@ -35,7 +35,7 @@ func newMyALOHandler() *myALOHandler {
 	return &myALOHandler{alos: map[string]*myALO{}}
 }
 
-func (m *myALOHandler) Start(ctx context.Context, req *alo.ALOStartRequest) error {
+func (m *myALOHandler) Start(ctx context.Context, req *alo.StartRequest) error {
 	m.alosLock.Lock()
 	defer m.alosLock.Unlock()
 	if m.alos[req.Id] != nil {
@@ -116,7 +116,7 @@ func main() {
 	mux.Handle("/greeting", greetingHandler)
 
 	// Start worker
-	worker, err := worker.New(worker.Options{Client: client, HTTPHandler: mux})
+	worker, err := worker.New(worker.Options{Client: client, Service: "my-service", HTTPHandler: mux})
 	if err != nil {
 		log.Fatal(err)
 	} else if err = worker.Start(ctx); err != nil {

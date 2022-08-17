@@ -14,20 +14,21 @@ var ErrAlreadyExists = errors.New("already exists")
 var ErrNotFound = errors.New("not found")
 var ErrNotImplemented = errors.New("not implemented")
 
-type ALOStartRequest struct {
+type StartRequest struct {
 	*backendpb.AloInfo
-	Body io.Reader
+	Body        io.Reader
+	HTTPRequest *http.Request
 }
 
-type ALOHandler interface {
-	Start(ctx context.Context, req *ALOStartRequest) error
+type Handler interface {
+	Start(ctx context.Context, req *StartRequest) error
 	GetInfo(ctx context.Context, id string) (*backendpb.AloInfo, error)
 	GetResult(ctx context.Context, id string) ([]byte, error)
 	Cancel(ctx context.Context, id string) error
 }
 
 type HTTPOptions struct {
-	Handler ALOHandler
+	Handler Handler
 }
 
 func NewHTTPHandler(options HTTPOptions) (http.Handler, error) {
